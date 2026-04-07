@@ -18,8 +18,10 @@ sudo usermod -aG docker $USER
 sudo apt-get update && sudo apt-get install -y docker-compose-plugin
 
 # 3. Clone the project
-sudo mkdir -p /opt/skool-clone
-cd /opt/skool-clone
+sudo mkdir -p /opt/sanayadschool
+sudo chown $USER:$USER /opt/sanayadschool
+cd /opt/sanayadschool
+git clone https://github.com/moayadb/sanayadschool.git .
 
 # 4. Upload the project files (from your local machine, run this LOCALLY):
 #    scp -r . root@YOUR_VPS_IP:/opt/skool-clone/
@@ -40,7 +42,7 @@ sudo ./deploy.sh
 ## Updating the Site
 
 ```bash
-cd /opt/skool-clone
+cd /opt/sanayadschool
 git pull  # or re-upload files
 docker compose up -d --build app
 docker compose restart nginx

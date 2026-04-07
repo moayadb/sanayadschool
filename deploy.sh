@@ -8,7 +8,8 @@ echo "=========================================="
 # --- Configuration ---
 DOMAIN="learn.sanayadtech.com"
 EMAIL="admin@sanayadtech.com"
-APP_DIR="/opt/skool-clone"
+APP_DIR="/opt/sanayadschool"
+REPO_URL="https://github.com/moayadb/sanayadschool.git"
 
 # Generate secrets if .env doesn't exist
 if [ ! -f "$APP_DIR/.env" ]; then
@@ -33,7 +34,8 @@ echo "🔧 Step 1: Starting services with HTTP-only config..."
 cp "$APP_DIR/nginx/conf.d/default.conf.nossl" "$APP_DIR/nginx/conf.d/default.conf.bak"
 cp "$APP_DIR/nginx/conf.d/default.conf.nossl" "$APP_DIR/nginx/conf.d/default.conf"
 
-cd "$APP_DIR"
+cd /opt/sanayadschool
+git pull  # or re-upload files
 docker compose up -d db
 echo "  ⏳ Waiting for database to be ready..."
 sleep 10
