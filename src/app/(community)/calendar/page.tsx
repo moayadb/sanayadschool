@@ -1,12 +1,13 @@
 import { Calendar as CalendarIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { getDefaultGroup } from "@/lib/get-membership";
+import { getDefaultGroup, isStaff } from "@/lib/get-membership";
+import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { Calendar } from "@/components/calendar/calendar";
 
 export default async function CalendarPage() {
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/auth/signin");
   }
 
@@ -25,6 +26,17 @@ export default async function CalendarPage() {
     );
   }
 
+  // Check if user is admin
+  const membership = await db.membership.findUnique({
+    where: {
+      userId_groupId: {
+        userId: session.user.id,
+        groupId: group.id,
+      },
+    },
+  });
+  const isAdmin = membership ? isStaff(membership.role) : false;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -33,7 +45,7 @@ export default async function CalendarPage() {
           Calendar
         </h1>
       </div>
-      <Calendar groupId={group.id} />
+      <Calendar groupId={group.id} isAdmin={isAdmin} />
     </div>
   );
 }

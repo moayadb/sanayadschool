@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CreateEventDialog } from "./create-event-dialog";
 
 interface Event {
   id: string;
@@ -49,6 +50,7 @@ export function Calendar({ groupId, isAdmin }: CalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -135,7 +137,25 @@ export function Calendar({ groupId, isAdmin }: CalendarProps) {
             <TabsTrigger value="past">Past</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {isAdmin && (
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Event
+          </Button>
+        )}
       </div>
+
+      {/* Create Event Dialog */}
+      {isAdmin && (
+        <CreateEventDialog
+          groupId={groupId}
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          onEventCreated={fetchEvents}
+          defaultDate={selectedDate || new Date()}
+        />
+      )}
 
       {/* Calendar Grid */}
       <Card>

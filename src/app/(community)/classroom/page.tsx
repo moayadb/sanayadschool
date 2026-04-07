@@ -1,12 +1,13 @@
 import { BookOpen } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { getDefaultGroup } from "@/lib/get-membership";
+import { getDefaultGroup, isStaff } from "@/lib/get-membership";
+import { db } from "@/lib/db";
 import { CourseList } from "@/components/classroom/course-list";
 import { redirect } from "next/navigation";
 
 export default async function ClassroomPage() {
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/auth/signin");
   }
 
@@ -25,6 +26,17 @@ export default async function ClassroomPage() {
     );
   }
 
+  // Check if user is instructor/admin
+  const membership = await db.membership.findUnique({
+    where: {
+      userId_groupId: {
+        userId: session.user.id,
+        groupId: group.id,
+      },
+    },
+  });
+  const isInstructor = membership ? isStaff(membership.role) : false;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -33,7 +45,7 @@ export default async function ClassroomPage() {
           Classroom
         </h1>
       </div>
-      <CourseList groupId={group.id} />
+      <CourseList groupId={group.id} isInstructor={isInstructor} />
     </div>
   );
 }
