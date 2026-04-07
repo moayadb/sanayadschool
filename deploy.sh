@@ -5,125 +5,81 @@ echo "=========================================="
 echo "  Sanayad Learn - Deployment Script"
 echo "=========================================="
 
-# --- Configuration ---
-DOMAIN="learn.sanayadtech.com"
-EMAIL="admin@sanayadtech.com"
 APP_DIR="/opt/sanayadschool"
-REPO_URL="https://github.com/moayadb/sanayadschool.git"
+DOMAIN="learn.sanayadtech.com"
 
-# Generate secrets if .env doesn't exist
+# --- Step 1: Generate .env ---
 if [ ! -f "$APP_DIR/.env" ]; then
     echo ""
-    echo "📝 Creating .env file with generated secrets..."
+    echo "Step 1: Creating .env file..."
     DB_PASSWORD=$(openssl rand -hex 24)
     AUTH_SECRET=$(openssl rand -hex 32)
-    cat > "$APP_DIR/.env" <<EOF
+    cat > "$APP_DIR/.env" << EOF
 DB_PASSWORD=$DB_PASSWORD
 AUTH_SECRET=$AUTH_SECRET
 EOF
-    echo "  ✓ .env created with secure random passwords"
+    echo "  Done - .env created"
 else
-    echo "  ✓ .env already exists, keeping existing secrets"
+    echo "Step 1: .env already exists, keeping it"
 fi
 
 source "$APP_DIR/.env"
 
-# --- Step 1: Start with HTTP-only nginx (for SSL cert) ---
+# --- Step 2: Build and start containers ---
 echo ""
-echo "🔧 Step 1: Starting services with HTTP-only config..."
-cp "$APP_DIR/nginx/conf.d/default.conf.nossl" "$APP_DIR/nginx/conf.d/default.conf.bak"
-cp "$APP_DIR/nginx/conf.d/default.conf.nossl" "$APP_DIR/nginx/conf.d/default.conf"
+echo "Step 2: Building and starting containers..."
+cd "$APP_DIR"
+docker compose down 2>/dev/null || true
+docker compose up -d --build
+echo "  Waiting for app to start..."
+sleep 20
 
-cd /opt/sanayadschool
-git pull  # or re-upload files
-docker compose up -d db
-echo "  ⏳ Waiting for database to be ready..."
-sleep 10
-
-docker compose up -d --build app
-echo "  ⏳ Waiting for app to start..."
-sleep 15
-
-docker compose up -d nginx
-sleep 5
-
-# --- Step 2: Get SSL certificate ---
+# --- Step 3: Run database migrations and seed ---
 echo ""
-echo "🔐 Step 2: Obtaining SSL certificate for $DOMAIN..."
-docker compose run --rm certbot certonly \
-    --webroot \
-    --webroot-path=/var/www/certbot \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    -d "$DOMAIN"
-
-# --- Step 3: Switch to SSL nginx config ---
-echo ""
-echo "🔄 Step 3: Switching to SSL nginx config..."
-cp "$APP_DIR/nginx/conf.d/default.conf.bak" "$APP_DIR/nginx/conf.d/default.conf.nossl"
-# Restore the SSL config
-cat > "$APP_DIR/nginx/conf.d/default.conf" <<'NGINXEOF'
-server {
-    listen 80;
-    server_name learn.sanayadtech.com;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl;
-    server_name learn.sanayadtech.com;
-
-    ssl_certificate /etc/letsencrypt/live/learn.sanayadtech.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/learn.sanayadtech.com/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    client_max_body_size 100M;
-
-    location / {
-        proxy_pass http://app:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-NGINXEOF
-
-docker compose restart nginx
-sleep 3
-
-# --- Step 4: Run database migrations and seed ---
-echo ""
-echo "🗄️  Step 4: Setting up database..."
+echo "Step 3: Setting up database..."
 docker compose exec app npx prisma db push
-echo "  ✓ Database schema applied"
+echo "  Database schema applied"
 
-docker compose exec app npx tsx prisma/seed.ts 2>/dev/null || echo "  ⚠ Seed skipped (may already exist)"
+docker compose exec app npx tsx prisma/seed.ts 2>/dev/null || echo "  Seed skipped (may already exist)"
+
+# --- Step 4: Configure Caddy reverse proxy ---
+echo ""
+echo "Step 4: Configuring Caddy proxy for $DOMAIN..."
+
+# Find HestiaCP's proxy config for this domain and update it
+HESTIA_PROXY="/home/admin/conf/web/$DOMAIN/caddy.conf"
+if [ -d "/usr/local/hestia" ]; then
+    echo "  HestiaCP detected."
+    echo "  Please configure $DOMAIN in HestiaCP to proxy to localhost:3100"
+    echo "  Or run: v-add-web-domain-backend admin $DOMAIN localhost 3100"
+else
+    # Direct Caddy config
+    CADDY_CONF="/etc/caddy/Caddyfile"
+    if [ -f "$CADDY_CONF" ]; then
+        if ! grep -q "$DOMAIN" "$CADDY_CONF"; then
+            cat >> "$CADDY_CONF" << CADDYEOF
+
+$DOMAIN {
+    reverse_proxy localhost:3100
+}
+CADDYEOF
+            systemctl reload caddy
+            echo "  Caddy config added and reloaded"
+        else
+            echo "  $DOMAIN already in Caddy config"
+        fi
+    fi
+fi
 
 # --- Done ---
 echo ""
 echo "=========================================="
-echo "  ✅ Deployment Complete!"
+echo "  Deployment Complete!"
 echo "=========================================="
 echo ""
-echo "  🌐 Your site is live at: https://$DOMAIN"
-echo "  📧 Admin login: admin@sanayadtech.com"
-echo "  🔑 Admin password: admin123!"
+echo "  Site: https://$DOMAIN"
+echo "  Admin: admin@sanayadtech.com"
+echo "  Password: admin123!"
 echo ""
-echo "  ⚠️  IMPORTANT: Change the admin password after first login!"
+echo "  Change the admin password after first login!"
 echo ""
