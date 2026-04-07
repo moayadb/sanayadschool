@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: skool
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_strong_password_here}
+      POSTGRES_DB: skool_clone
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skool -d skool_clone"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://skool:${DB_PASSWORD:-changeme_strong_password_here}@db:5432/skool_clone?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:-generate_a_random_secret_here}
+      AUTH_URL: https://learn.sanayadtech.com
+      NEXT_PUBLIC_APP_URL: https://learn.sanayadtech.com
+      AUTH_TRUST_HOST: "true"
+    ports:
+      - "3000:3000"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  pgdata:

@@ -1,0 +1,520 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH & USER ───────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  hashedPassword String?
+  image          String?
+  bio            String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  // Community relationships
+  memberships    Membership[]
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  enrollments    CourseEnrollment[]
+  lessonProgress LessonProgress[]
+  eventRsvps     EventRsvp[]
+
+  // Instructor chat
+  sentMessages     InstructorMessage[] @relation("SentMessages")
+  receivedMessages InstructorMessage[] @relation("ReceivedMessages")
+
+  // Notifications
+  notifications Notification[]
+
+  // Following
+  following  Follow[] @relation("Following")
+  followers  Follow[] @relation("Followers")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── GROUP (COMMUNITY) ────────────────────────────────────────
+
+model Group {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String? @db.Text
+  coverImage  String?
+  icon        String?
+  isPublic    Boolean @default(false)
+  rules       String? @db.Text
+
+  // Settings
+  requirePostApproval Boolean @default(true)
+  autoAcceptMembers   Boolean @default(false)
+  maxCategories       Int     @default(10)
+
+  // Membership questions (JSON array of strings)
+  membershipQuestions Json?
+  // Auto DM template
+  welcomeMessage String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  categories  Category[]
+  posts       Post[]
+  courses     Course[]
+  events      Event[]
+  levelConfig LevelConfig[]
+
+  @@map("groups")
+}
+
+// ─── MEMBERSHIP ───────────────────────────────────────────────
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  BILLING_MANAGER
+  MEMBER
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  BANNED
+}
+
+model Membership {
+  id     String           @id @default(cuid())
+  userId String
+  groupId String
+  role   MemberRole       @default(MEMBER)
+  status MembershipStatus @default(PENDING)
+  points Int              @default(0)
+  level  Int              @default(1)
+
+  // Membership question answers (JSON)
+  questionAnswers Json?
+
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("memberships")
+}
+
+// ─── FOLLOW ───────────────────────────────────────────────────
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  followingId String
+
+  createdAt DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+// ─── COMMUNITY FEED ───────────────────────────────────────────
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String
+  groupId  String
+  order    Int     @default(0)
+  readOnly Boolean @default(false) // Only admins can post
+
+  group Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@unique([groupId, slug])
+  @@map("categories")
+}
+
+enum PostStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Post {
+  id         String     @id @default(cuid())
+  content    String     @db.Text
+  authorId   String
+  groupId    String
+  categoryId String?
+  status     PostStatus @default(PENDING)
+  isPinned   Boolean    @default(false)
+
+  // Rejection note (if rejected by admin)
+  rejectionNote String? @db.Text
+  reviewedBy    String?
+  reviewedAt    DateTime?
+
+  // Poll (optional, JSON: { question: string, options: string[], votes: Record<string, string[]> })
+  poll Json?
+
+  // Attachments stored as JSON array: [{ type, url, name }]
+  attachments Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  likes    Like[]
+
+  @@index([groupId, status, createdAt])
+  @@index([groupId, isPinned])
+  @@map("posts")
+}
+
+model Comment {
+  id       String  @id @default(cuid())
+  content  String  @db.Text
+  authorId String
+  postId   String
+  parentId String? // For nested replies
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+  likes   Like[]
+
+  @@index([postId, createdAt])
+  @@map("comments")
+}
+
+model Like {
+  id        String  @id @default(cuid())
+  userId    String
+  postId    String?
+  commentId String?
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("likes")
+}
+
+// ─── CLASSROOM (COURSES) ─────────────────────────────────────
+
+enum CourseAccessType {
+  FREE
+  LEVEL_LOCKED
+  PAID
+  MANUAL
+}
+
+model Course {
+  id          String           @id @default(cuid())
+  title       String
+  slug        String
+  description String?          @db.Text
+  coverImage  String?
+  groupId     String
+  accessType  CourseAccessType  @default(FREE)
+  price       Float?           // For PAID access
+  unlockLevel Int?             // For LEVEL_LOCKED access
+  dripEnabled Boolean          @default(false)
+  order       Int              @default(0)
+  published   Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group       Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  modules     Module[]
+  enrollments CourseEnrollment[]
+
+  @@unique([groupId, slug])
+  @@map("courses")
+}
+
+model Module {
+  id       String @id @default(cuid())
+  title    String
+  courseId String
+  order    Int    @default(0)
+
+  // Drip: unlock X days after enrollment
+  dripDays Int? // null = available immediately
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@map("modules")
+}
+
+model Lesson {
+  id       String  @id @default(cuid())
+  title    String
+  moduleId String
+  order    Int     @default(0)
+
+  // Content
+  videoUrl    String?  @db.Text  // External embed URL or self-hosted path
+  videoType   String?  // "youtube" | "vimeo" | "wistia" | "loom" | "bunny" | "self-hosted"
+  content     String?  @db.Text  // Rich text body
+  transcript  String?  @db.Text
+  attachments Json?    // [{ name, url, type }]
+  checklist   Json?    // [{ text, id }]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  module   Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
+
+  @@map("lessons")
+}
+
+model CourseEnrollment {
+  id       String @id @default(cuid())
+  userId   String
+  courseId String
+
+  enrolledAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("course_enrollments")
+}
+
+model LessonProgress {
+  id       String  @id @default(cuid())
+  userId   String
+  lessonId String
+  completed Boolean @default(false)
+
+  // Checklist progress (JSON: { [checklistItemId]: boolean })
+  checklistProgress Json?
+
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("lesson_progress")
+}
+
+// ─── CALENDAR & EVENTS ───────────────────────────────────────
+
+enum EventRepeat {
+  NONE
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     @db.Text
+  groupId     String
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?        // minutes
+  location    String?     // URL or physical address
+  repeat      EventRepeat @default(NONE)
+
+  // Access control
+  requiredLevel  Int?     // Minimum level to attend
+  requiredCourse String?  // Course ID required
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  rsvps EventRsvp[]
+
+  @@index([groupId, startTime])
+  @@map("events")
+}
+
+enum RsvpStatus {
+  GOING
+  NOT_GOING
+  MAYBE
+}
+
+model EventRsvp {
+  id      String     @id @default(cuid())
+  userId  String
+  eventId String
+  status  RsvpStatus @default(GOING)
+
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@map("event_rsvps")
+}
+
+// ─── GAMIFICATION ─────────────────────────────────────────────
+
+model LevelConfig {
+  id       String @id @default(cuid())
+  groupId  String
+  level    Int
+  name     String // Custom level name (e.g., "Newbie", "Expert")
+  minPoints Int
+
+  // Reward: course ID to unlock at this level
+  unlockCourseId String?
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, level])
+  @@map("level_configs")
+}
+
+// ─── INSTRUCTOR CHAT (DMs) ───────────────────────────────────
+
+model InstructorConversation {
+  id        String @id @default(cuid())
+  memberId  String // The regular member
+  groupId   String // Which community this conversation belongs to
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages InstructorMessage[]
+
+  @@unique([memberId, groupId])
+  @@map("instructor_conversations")
+}
+
+model InstructorMessage {
+  id             String @id @default(cuid())
+  conversationId String
+  senderId       String
+  receiverId     String
+  content        String @db.Text
+  read           Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  conversation InstructorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User                   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("instructor_messages")
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────
+
+enum NotificationType {
+  POST_APPROVED
+  POST_REJECTED
+  NEW_COMMENT
+  NEW_REPLY
+  NEW_LIKE
+  LEVEL_UP
+  EVENT_REMINDER
+  INSTRUCTOR_MESSAGE
+  WELCOME
+  NEW_POST // For admins: new post pending approval
+}
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  type   NotificationType
+  title  String
+  body   String?
+  read   Boolean          @default(false)
+
+  // Link to related entity
+  linkUrl String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@map("notifications")
+}
