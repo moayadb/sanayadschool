@@ -89,19 +89,18 @@ export function CourseDetail({ isInstructor }: CourseDetailProps) {
 
   const fetchCourse = async () => {
     try {
-      // First fetch course list to get course ID from slug
-      const listRes = await fetch(`/api/courses?groupId=placeholder`);
-      if (!listRes.ok) throw new Error("Failed to fetch courses");
-      const listData = await listRes.json();
-      const courseInfo = listData.courses.find((c: any) => c.slug === courseSlug);
-      
-      if (!courseInfo) {
-        toast.error("Course not found");
+      // Use the new by-slug API
+      const res = await fetch(`/api/courses/by-slug/${courseSlug}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          toast.error("Course not found");
+        } else {
+          toast.error("Failed to load course");
+        }
+        setIsLoading(false);
         return;
       }
 
-      const res = await fetch(`/api/courses/${courseInfo.id}`);
-      if (!res.ok) throw new Error("Failed to fetch course");
       const data = await res.json();
       setCourse(data.course);
       
