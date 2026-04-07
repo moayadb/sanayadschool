@@ -17,6 +17,7 @@ import {
   ChevronRight,
   FileText,
   Video,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,8 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CreateModuleDialog } from "./create-module-dialog";
+import { CreateLessonDialog } from "./create-lesson-dialog";
 
 interface Lesson {
   id: string;
@@ -64,7 +67,11 @@ interface Course {
   modules: Module[];
 }
 
-export function CourseDetail() {
+interface CourseDetailProps {
+  isInstructor?: boolean;
+}
+
+export function CourseDetail({ isInstructor }: CourseDetailProps) {
   const params = useParams();
   const courseSlug = params.courseSlug as string;
   const [course, setCourse] = useState<Course | null>(null);
@@ -72,6 +79,9 @@ export function CourseDetail() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [markingComplete, setMarkingComplete] = useState(false);
+  const [createModuleOpen, setCreateModuleOpen] = useState(false);
+  const [createLessonOpen, setCreateLessonOpen] = useState(false);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourse();
@@ -328,6 +338,18 @@ export function CourseDetail() {
                 Course Content
               </h2>
 
+              {isInstructor && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mb-4"
+                  onClick={() => setCreateModuleOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Module
+                </Button>
+              )}
+
               <div className="space-y-2">
                 {course.modules.map((module, moduleIndex) => (
                   <div key={module.id}>
@@ -384,6 +406,18 @@ export function CourseDetail() {
                                 )}
                               </button>
                             ))}
+                            {isInstructor && (
+                              <button
+                                onClick={() => {
+                                  setSelectedModuleId(module.id);
+                                  setCreateLessonOpen(true);
+                                }}
+                                className="w-full flex items-center gap-3 p-2 rounded-lg text-left text-sm text-muted-foreground hover:bg-gray-50 border border-dashed"
+                              >
+                                <Plus className="h-4 w-4" />
+                                <span>Add Lesson</span>
+                              </button>
+                            )}
                           </div>
                         </motion.div>
                       )}
@@ -423,6 +457,26 @@ export function CourseDetail() {
           </Card>
         </div>
       </div>
+
+      {/* Create Module Dialog */}
+      {isInstructor && course && (
+        <CreateModuleDialog
+          courseId={course.id}
+          open={createModuleOpen}
+          onOpenChange={setCreateModuleOpen}
+          onModuleCreated={fetchCourse}
+        />
+      )}
+
+      {/* Create Lesson Dialog */}
+      {isInstructor && selectedModuleId && (
+        <CreateLessonDialog
+          moduleId={selectedModuleId}
+          open={createLessonOpen}
+          onOpenChange={setCreateLessonOpen}
+          onLessonCreated={fetchCourse}
+        />
+      )}
     </div>
   );
 }
