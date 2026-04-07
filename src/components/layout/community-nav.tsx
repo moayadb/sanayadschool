@@ -16,8 +16,8 @@ const tabs = [
   { label: "Community", href: "/community", icon: MessageSquareText },
   { label: "Classroom", href: "/classroom", icon: BookOpen },
   { label: "Calendar", href: "/calendar", icon: Calendar },
-  { label: "Leaderboards", href: "/leaderboards", icon: Trophy },
-  { label: "Members", href: "/members", icon: Users },
+  { label: "Leaderboards", href: "/community/leaderboards", icon: Trophy },
+  { label: "Members", href: "/community/members", icon: Users },
   { label: "About", href: "/about", icon: Info },
 ];
 
