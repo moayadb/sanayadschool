@@ -117,3 +117,57 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+
+// POST /api/courses - Create new course (admin only)
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { groupId, title, description, accessType, unlockLevel } = body;
+
+    if (!groupId || !title) {
+      return NextResponse.json({ error: "Group ID and title required" }, { status: 400 });
+    }
+
+    // Check admin permissions
+    const membership = await db.membership.findUnique({
+      where: {
+        userId_groupId: {
+          userId: session.user.id,
+          groupId: groupId,
+        },
+      },
+    });
+
+    if (!membership || !["OWNER", "ADMIN", "MODERATOR"].includes(membership.role)) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
+    // Generate slug from title
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const course = await db.course.create({
+      data: {
+        title,
+        slug,
+        description,
+        groupId,
+        accessType: accessType || "FREE",
+        unlockLevel: unlockLevel ? parseInt(unlockLevel) : null,
+        published: true,
+      },
+    });
+
+    return NextResponse.json({ course });
+  } catch (error) {
+    console.error("[COURSES_POST]", error);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
