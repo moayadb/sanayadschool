@@ -1,18 +1,50 @@
-import { MessageSquareText } from "lucide-react";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { CommunityFeed } from "@/components/community/community-feed";
 
-export default function CommunityPage() {
+export default async function CommunityPage() {
+  const session = await auth();
+
+  // Get the default (first) group
+  const group = await db.group.findFirst({
+    orderBy: { createdAt: "asc" },
+    include: {
+      categories: { orderBy: { order: "asc" } },
+    },
+  });
+
+  if (!group) {
+    return (
+      <div className="text-center py-20 text-muted-foreground">
+        <p>No community has been set up yet.</p>
+      </div>
+    );
+  }
+
+  // Check membership
+  let memberRole = "";
+  if (session?.user?.id) {
+    const membership = await db.membership.findUnique({
+      where: {
+        userId_groupId: { userId: session.user.id, groupId: group.id },
+      },
+    });
+
+    if (!membership || membership.status !== "ACTIVE") {
+      redirect("/community/join");
+    }
+
+    memberRole = membership.role;
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <MessageSquareText className="h-6 w-6" />
-          Community
-        </h1>
-      </div>
-      <div className="bg-white rounded-lg border p-8 text-center text-muted-foreground">
-        <p>Community feed will be implemented in Phase 2.</p>
-        <p className="text-sm mt-2">Posts, categories, comments, likes, and approval queue.</p>
-      </div>
-    </div>
+    <CommunityFeed
+      groupId={group.id}
+      groupName={group.name}
+      requiresApproval={group.requirePostApproval}
+      memberRole={memberRole}
+      categories={group.categories}
+    />
   );
 }
