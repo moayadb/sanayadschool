@@ -31,18 +31,10 @@ echo "Step 2: Building and starting containers..."
 cd "$APP_DIR"
 docker compose down 2>/dev/null || true
 docker compose up -d --build
-echo "  Waiting for app to start..."
-sleep 20
+echo "  Waiting for app to start (migrations run automatically)..."
+sleep 30
 
-# --- Step 3: Run database migrations and seed ---
-echo ""
-echo "Step 3: Setting up database..."
-docker compose exec app npx prisma db push
-echo "  Database schema applied"
-
-docker compose exec app npx tsx prisma/seed.ts 2>/dev/null || echo "  Seed skipped (may already exist)"
-
-# --- Step 4: Configure Caddy reverse proxy ---
+# --- Step 3: Configure Caddy reverse proxy ---
 echo ""
 echo "Step 4: Configuring Caddy proxy for $DOMAIN..."
 
