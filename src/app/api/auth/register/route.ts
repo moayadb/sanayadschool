@@ -41,6 +41,19 @@ export async function POST(req: Request) {
       },
     });
 
+    // Auto-join the default group
+    const defaultGroup = await db.group.findFirst();
+    if (defaultGroup) {
+      await db.membership.create({
+        data: {
+          userId: user.id,
+          groupId: defaultGroup.id,
+          role: "MEMBER",
+          status: "ACTIVE",
+        },
+      });
+    }
+
     return NextResponse.json(
       { user: { id: user.id, name: user.name, email: user.email } },
       { status: 201 }

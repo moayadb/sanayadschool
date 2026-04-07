@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, GraduationCap } from "lucide-react";
+import { BookOpen, GraduationCap, Plus } from "lucide-react";
 import { CourseCard } from "./course-card";
+import { CreateCourseDialog } from "./create-course-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 interface Course {
@@ -33,11 +35,13 @@ interface Course {
 
 interface CourseListProps {
   groupId: string;
+  isInstructor?: boolean;
 }
 
-export function CourseList({ groupId }: CourseListProps) {
+export function CourseList({ groupId, isInstructor }: CourseListProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchCourses();
@@ -91,6 +95,24 @@ export function CourseList({ groupId }: CourseListProps) {
 
   return (
     <div className="space-y-10">
+      {/* Instructor: Create Course Button */}
+      {isInstructor && (
+        <div className="flex justify-end mb-4">
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Course
+          </Button>
+        </div>
+      )}
+
+      {/* Create Course Dialog */}
+      <CreateCourseDialog
+        groupId={groupId}
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onCourseCreated={fetchCourses}
+      />
+
       {/* Enrolled Courses */}
       {enrolledCourses.length > 0 && (
         <section>
@@ -154,7 +176,7 @@ export function CourseList({ groupId }: CourseListProps) {
         </section>
       )}
 
-      {courses.length === 0 && (
+      {courses.length === 0 && !isInstructor && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
