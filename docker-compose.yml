@@ -28,8 +28,8 @@ services:
       AUTH_URL: https://learn.sanayadtech.com
       NEXT_PUBLIC_APP_URL: https://learn.sanayadtech.com
       AUTH_TRUST_HOST: "true"
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
 
   nginx:
     image: nginx:alpine
