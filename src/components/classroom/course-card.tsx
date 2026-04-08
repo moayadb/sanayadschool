@@ -3,12 +3,18 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, Lock, CheckCircle, BookOpen, Clock, Award } from "lucide-react";
+import { Play, Lock, CheckCircle, BookOpen, Clock, Award, MoreHorizontal, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface CourseCardProps {
   course: {
@@ -35,9 +41,11 @@ interface CourseCardProps {
     }>;
   };
   onEnroll: (courseId: string) => Promise<void>;
+  isInstructor?: boolean;
+  onEdit?: (course: CourseCardProps["course"]) => void;
 }
 
-export function CourseCard({ course, onEnroll }: CourseCardProps) {
+export function CourseCard({ course, onEnroll, isInstructor, onEdit }: CourseCardProps) {
   const handleEnroll = async () => {
     try {
       await onEnroll(course.id);
@@ -119,6 +127,25 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
             <div className="absolute top-3 right-3">
               {getAccessBadge()}
             </div>
+
+            {/* Instructor Edit Menu */}
+            {isInstructor && onEdit && (
+              <div className="absolute top-3 left-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger onClick={(e) => e.preventDefault()}>
+                    <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/90 hover:bg-white">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={(e) => { e.preventDefault(); onEdit(course); }}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Course
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
         </Link>
 

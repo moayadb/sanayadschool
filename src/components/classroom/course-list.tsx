@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { BookOpen, GraduationCap, Plus } from "lucide-react";
 import { CourseCard } from "./course-card";
 import { CreateCourseDialog } from "./create-course-dialog";
+import { EditCourseDialog } from "./edit-course-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -42,6 +43,8 @@ export function CourseList({ groupId, isInstructor }: CourseListProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   useEffect(() => {
     fetchCourses();
@@ -113,6 +116,15 @@ export function CourseList({ groupId, isInstructor }: CourseListProps) {
         onCourseCreated={fetchCourses}
       />
 
+      {/* Edit Course Dialog */}
+      <EditCourseDialog
+        course={selectedCourse}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onCourseUpdated={fetchCourses}
+        onCourseDeleted={fetchCourses}
+      />
+
       {/* Enrolled Courses */}
       {enrolledCourses.length > 0 && (
         <section>
@@ -137,7 +149,12 @@ export function CourseList({ groupId, isInstructor }: CourseListProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <CourseCard course={course} onEnroll={handleEnroll} />
+                <CourseCard 
+                  course={course} 
+                  onEnroll={handleEnroll} 
+                  isInstructor={isInstructor}
+                  onEdit={(c) => { setSelectedCourse(c); setEditDialogOpen(true); }}
+                />
               </motion.div>
             ))}
           </div>
@@ -169,7 +186,12 @@ export function CourseList({ groupId, isInstructor }: CourseListProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + index * 0.1 }}
               >
-                <CourseCard course={course} onEnroll={handleEnroll} />
+                <CourseCard 
+                  course={course} 
+                  onEnroll={handleEnroll}
+                  isInstructor={isInstructor}
+                  onEdit={(c) => { setSelectedCourse(c); setEditDialogOpen(true); }}
+                />
               </motion.div>
             ))}
           </div>
